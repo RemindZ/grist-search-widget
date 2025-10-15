@@ -72,12 +72,75 @@
       color: #999;
       font-style: italic;
     }
+    .clear-btn {
+      padding: 8px 12px;
+      background: #e74c3c;
+      min-width: auto;
+    }
+    .clear-btn:hover:not(:disabled) {
+      background: #c0392b;
+    }
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #666;
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .3s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #16b378;
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
   </style>
 </head>
 <body>
   <div class="search-container">
     <div class="search-input-group">
       <input type="text" id="searchInput" placeholder="Search column...">
+      <button id="clearBtn" class="clear-btn">✕</button>
+    </div>
+    <div class="toggle-container">
+      <span>Partial match</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="exactMatchToggle">
+        <span class="slider"></span>
+      </label>
+      <span>Exact match</span>
     </div>
     <div class="nav-controls">
       <button id="prevBtn" disabled>← Previous</button>
@@ -91,11 +154,16 @@
     let matchingRecords = [];
     let currentMatchIndex = -1;
     let searchColumnId = null;
+    let debounceTimer = null;
 
+    // Tell Grist we're ready and allow this widget to be used for linking
     grist.ready({
-      columns: [{name: "SearchColumn", type: "Text", optional: false}]
+      columns: [{name: "SearchColumn", type: "Text", optional: false}],
+      requiredAccess: 'read table',
+      allowSelectBy: true
     });
 
+    // Get all records from the table
     grist.onRecords(function(records, mappings) {
       allRecords = records;
       searchColumnId = mappings.SearchColumn;
@@ -110,10 +178,45 @@
     const searchInput = document.getElementById('searchInput');
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
+    const clearBtn = document.getElementById('clearBtn');
     const matchCounter = document.getElementById('matchCounter');
+    const exactMatchToggle = document.getElementById('exactMatchToggle');
 
+    // Debounced search on input
     searchInput.addEventListener('input', function(e) {
-      performSearch(e.target.value);
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        performSearch(e.target.value);
+      }, 300);
+    });
+
+    // Toggle exact match and re-search
+    exactMatchToggle.addEventListener('change', function() {
+      const searchTerm = searchInput.value;
+      if (searchTerm) {
+        performSearch(searchTerm);
+      }
+    });
+
+    // Enter key for next match
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          prevBtn.click();
+        } else {
+          nextBtn.click();
+        }
+      } else if (e.key === 'Escape') {
+        clearBtn.click();
+      }
+    });
+
+    clearBtn.addEventListener('click', function() {
+      searchInput.value = '';
+      matchingRecords = [];
+      currentMatchIndex = -1;
+      updateUI();
     });
 
     prevBtn.addEventListener('click', function() {
@@ -138,12 +241,20 @@
         return;
       }
 
+      const isExactMatch = exactMatchToggle.checked;
       const lowerSearch = searchTerm.toLowerCase();
       
       matchingRecords = allRecords.filter(record => {
         const value = record[searchColumnId];
         if (value == null) return false;
-        return String(value).toLowerCase().includes(lowerSearch);
+        
+        const lowerValue = String(value).toLowerCase();
+        
+        if (isExactMatch) {
+          return lowerValue === lowerSearch;
+        } else {
+          return lowerValue.includes(lowerSearch);
+        }
       });
 
       if (matchingRecords.length > 0) {
@@ -158,8 +269,21 @@
     function navigateToMatch() {
       if (matchingRecords.length > 0 && currentMatchIndex >= 0) {
         const record = matchingRecords[currentMatchIndex];
-        grist.setCursorPos({rowId: record.id}).catch(console.error);
-        updateUI();
+        
+        // Use setCursorPos to navigate to the row
+        grist.setCursorPos({rowId: record.id})
+          .then(() => {
+            updateUI();
+          })
+          .catch(err => {
+            console.error('Error setting cursor position:', err);
+            // Try alternative method using setSelectedRows
+            return grist.setSelectedRows([record.id]);
+          })
+          .catch(err => {
+            console.error('Both navigation methods failed:', err);
+            updateUI();
+          });
       }
     }
 

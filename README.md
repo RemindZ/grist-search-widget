@@ -15,7 +15,7 @@ Type a search term and the widget finds all matching rows in your chosen column.
 
 ## How to use
 
-1. Add as a Custom Widget in Grist (remindz.github.io/grist-search-widget)
+1. Add as a Custom Widget in Grist ([https://remindz.github.io/grist-search-widget](https://remindz.github.io/grist-search-widget))
 2. Map it to the text column you want to search
 3. Start typing to search
 4. Click Previous/Next to move through results

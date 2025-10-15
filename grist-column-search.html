@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Column Search</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 16px;
+      margin: 0;
+      background: #f7f7f7;
+    }
+    .search-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    .search-input-group {
+      display: flex;
+      gap: 8px;
+    }
+    #searchInput {
+      flex: 1;
+      padding: 10px 12px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #searchInput:focus {
+      border-color: #16b378;
+    }
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: center;
+    }
+    button {
+      padding: 8px 16px;
+      background: #16b378;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    button:hover:not(:disabled) {
+      background: #13956a;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .match-counter {
+      padding: 8px 12px;
+      background: white;
+      border-radius: 6px;
+      font-size: 14px;
+      color: #666;
+      min-width: 80px;
+      text-align: center;
+      border: 1px solid #ddd;
+    }
+    .no-results {
+      color: #999;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="search-container">
+    <div class="search-input-group">
+      <input type="text" id="searchInput" placeholder="Search column...">
+    </div>
+    <div class="nav-controls">
+      <button id="prevBtn" disabled>← Previous</button>
+      <div class="match-counter" id="matchCounter">-</div>
+      <button id="nextBtn" disabled>Next →</button>
+    </div>
+  </div>
+
+  <script>
+    let allRecords = [];
+    let matchingRecords = [];
+    let currentMatchIndex = -1;
+    let searchColumnId = null;
+
+    grist.ready({
+      columns: [{name: "SearchColumn", type: "Text", optional: false}]
+    });
+
+    grist.onRecords(function(records, mappings) {
+      allRecords = records;
+      searchColumnId = mappings.SearchColumn;
+      
+      // Re-run search with current input
+      const searchTerm = document.getElementById('searchInput').value;
+      if (searchTerm) {
+        performSearch(searchTerm);
+      }
+    });
+
+    const searchInput = document.getElementById('searchInput');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const matchCounter = document.getElementById('matchCounter');
+
+    searchInput.addEventListener('input', function(e) {
+      performSearch(e.target.value);
+    });
+
+    prevBtn.addEventListener('click', function() {
+      if (currentMatchIndex > 0) {
+        currentMatchIndex--;
+        navigateToMatch();
+      }
+    });
+
+    nextBtn.addEventListener('click', function() {
+      if (currentMatchIndex < matchingRecords.length - 1) {
+        currentMatchIndex++;
+        navigateToMatch();
+      }
+    });
+
+    function performSearch(searchTerm) {
+      if (!searchTerm.trim() || !searchColumnId) {
+        matchingRecords = [];
+        currentMatchIndex = -1;
+        updateUI();
+        return;
+      }
+
+      const lowerSearch = searchTerm.toLowerCase();
+      
+      matchingRecords = allRecords.filter(record => {
+        const value = record[searchColumnId];
+        if (value == null) return false;
+        return String(value).toLowerCase().includes(lowerSearch);
+      });
+
+      if (matchingRecords.length > 0) {
+        currentMatchIndex = 0;
+        navigateToMatch();
+      } else {
+        currentMatchIndex = -1;
+        updateUI();
+      }
+    }
+
+    function navigateToMatch() {
+      if (matchingRecords.length > 0 && currentMatchIndex >= 0) {
+        const record = matchingRecords[currentMatchIndex];
+        grist.setCursorPos({rowId: record.id}).catch(console.error);
+        updateUI();
+      }
+    }
+
+    function updateUI() {
+      if (matchingRecords.length === 0) {
+        matchCounter.innerHTML = '<span class="no-results">No matches</span>';
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+      } else {
+        matchCounter.textContent = `${currentMatchIndex + 1} of ${matchingRecords.length}`;
+        prevBtn.disabled = currentMatchIndex <= 0;
+        nextBtn.disabled = currentMatchIndex >= matchingRecords.length - 1;
+      }
+    }
+
+    // Initialize UI
+    updateUI();
+  </script>
+</body>
+</html>

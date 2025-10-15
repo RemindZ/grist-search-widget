@@ -23,7 +23,7 @@ Type a search term and the widget finds all matching rows in your chosen column.
 
 ## How to use
 
-1. Add as a Custom Widget in Grist with "Read table" access
+1. Add as a Custom Widget in Grist with "Read table" access ([https://remindz.github.io/grist-search-widget](https://remindz.github.io/grist-search-widget))
 2. Map the SearchColumn to the text column you want to search
 3. Start typing to search (searches automatically as you type)
 4. Use the toggle to switch between partial and exact matching
